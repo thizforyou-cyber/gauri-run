@@ -13,7 +13,7 @@ const player={x:95,y:GROUND-112,vy:0};
 function safeSave(){try{localStorage.setItem("gauriBest",String(best));}catch(e){}}
 function updateHud(){scoreEl.textContent=String(Math.floor(score)).padStart(5,"0");coinsEl.textContent=String(coins);}
 function start(){state="run";score=0;coins=0;speed=6;frame=0;obstacles=[];gems=[];player.y=GROUND-112;player.vy=0;ducking=false;updateHud();}
-function jump(){if(state!=="run"){start();return;}if(player.y>=GROUND-113){player.vy=-15;}}
+function jump(){if(state!=="run"){start();return;}if(player.y>=GROUND-113){player.vy=-15;playJumpSound();}}
 function drawBackground(){
  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#bdeff0");g.addColorStop(1,"#f4f7d9");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  ctx.fillStyle="rgba(255,255,255,.8)";
@@ -23,9 +23,30 @@ function drawBackground(){
  ctx.strokeStyle="#d7edc7";for(let i=-(frame*speed%55);i<W;i+=55){ctx.beginPath();ctx.moveTo(i,GROUND+28);ctx.lineTo(i+20,GROUND+28);ctx.stroke();}
 }
 function drawPlayer(){
- const h=ducking?78:112,w=ducking?112:96,y=ducking?GROUND-h:player.y;
- if(face.complete&&face.naturalWidth){ctx.save();if(ducking){ctx.translate(player.x+w,y);ctx.scale(-1,1);ctx.drawImage(face,0,0,w,h);}else ctx.drawImage(face,player.x,y,w,h);ctx.restore();}
- else {ctx.fillStyle="#18b9b3";ctx.fillRect(player.x+10,y+35,72,75);ctx.fillStyle="#bd805d";ctx.beginPath();ctx.arc(player.x+47,y+27,25,0,Math.PI*2);ctx.fill();ctx.fillStyle="#18233c";ctx.fillRect(player.x+25,y+20,8,6);ctx.fillRect(player.x+55,y+20,8,6);}
+ const w=ducking?112:96,h=ducking?78:112,y=ducking?GROUND-h:player.y;
+ // Draw Gauri's head prominently from the character artwork, even if the body art fails.
+ if(face.complete&&face.naturalWidth){
+   const sw=180, sh=174, dw=ducking?78:86, dh=ducking?76:92, dx=player.x+(w-dw)/2, dy=y;
+   ctx.save(); if(ducking){ctx.translate(player.x+w,y);ctx.scale(-1,1);ctx.drawImage(face,0,0,sw,sh,8,0,dw,dh);} else ctx.drawImage(face,0,0,sw,sh,dx,dy,dw,dh); ctx.restore();
+   ctx.fillStyle="#20bfc0";ctx.fillRect(player.x+20,y+dh-5,56,h-dh+5);
+ } else {
+   ctx.fillStyle="#20bfc0";ctx.fillRect(player.x+18,y+53,60,58);
+   ctx.fillStyle="#241b1a";ctx.beginPath();ctx.arc(player.x+48,y+31,30,Math.PI,Math.PI*2);ctx.fill();
+   ctx.fillStyle="#d99a76";ctx.beginPath();ctx.ellipse(player.x+48,y+38,25,29,0,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle="#211a18";ctx.beginPath();ctx.arc(player.x+39,y+38,3,0,7);ctx.arc(player.x+57,y+38,3,0,7);ctx.fill();
+   ctx.strokeStyle="#914c4b";ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x+48,y+49,8,.2,2.8);ctx.stroke();
+ }
+}
+let jumpAudioCtx=null;
+function playJumpSound(){
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  if(!jumpAudioCtx)jumpAudioCtx=new AC();if(jumpAudioCtx.state==="suspended")jumpAudioCtx.resume();
+  const now=jumpAudioCtx.currentTime,osc=jumpAudioCtx.createOscillator(),gain=jumpAudioCtx.createGain();
+  osc.type="sine";osc.frequency.setValueAtTime(520,now);osc.frequency.exponentialRampToValueAtTime(880,now+.11);
+  gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.18,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.24);
+  osc.connect(gain);gain.connect(jumpAudioCtx.destination);osc.start(now);osc.stop(now+.25);
+ }catch(e){console.warn("Jump sound unavailable",e);}
 }
 function drawOverlay(title,subtitle){ctx.fillStyle="rgba(16,32,59,.72)";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="900 42px system-ui";ctx.fillText(title,W/2,140);ctx.font="600 18px system-ui";ctx.fillStyle="#d5f8f3";ctx.fillText(subtitle,W/2,180);ctx.font="700 14px system-ui";ctx.fillStyle="#c4d6e8";ctx.fillText("Tap the game or press SPACE to play",W/2,218);}
 function hit(o){const px=player.x+18,py=player.y+10,pw=62,ph=95,ox=o.x+4,oy=GROUND-o.h+4,ow=o.w-8,oh=o.h-4;return px<ox+ow&&px+pw>ox&&py<oy+oh&&py+ph>oy;}
