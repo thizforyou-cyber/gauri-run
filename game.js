@@ -1,82 +1,22 @@
-(()=> {
-"use strict";
-const canvas=document.getElementById("game");
-const ctx=canvas && canvas.getContext("2d");
-const scoreEl=document.getElementById("score"), bestEl=document.getElementById("best"), coinsEl=document.getElementById("coins");
-if(!canvas || !ctx){document.body.insertAdjacentHTML("beforeend","<p style='color:white'>Game could not start: canvas is unavailable.</p>");return;}
-const W=900,H=340,GROUND=276;
-let state="ready",score=0,best=0,coins=0,speed=6,frame=0,obstacles=[],gems=[],jumping=false,ducking=false;
-try{best=Number(localStorage.getItem("gauriBest")||0)||0;}catch(e){}
-bestEl.textContent=String(best).padStart(5,"0");
-const face=new Image();face.src="./assets/gauri.svg";
-const player={x:95,y:GROUND-112,vy:0};
-function safeSave(){try{localStorage.setItem("gauriBest",String(best));}catch(e){}}
-function updateHud(){scoreEl.textContent=String(Math.floor(score)).padStart(5,"0");coinsEl.textContent=String(coins);}
-function start(){state="run";score=0;coins=0;speed=6;frame=0;obstacles=[];gems=[];player.y=GROUND-112;player.vy=0;ducking=false;updateHud();}
-function jump(){if(state!=="run"){start();return;}if(player.y>=GROUND-113){player.vy=-15;playJumpSound();}}
-function drawBackground(){
- const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#bdeff0");g.addColorStop(1,"#f4f7d9");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
- ctx.fillStyle="rgba(255,255,255,.8)";
- for(let i=0;i<4;i++){let cx=(i*250-frame*1.8%1050+1050)%1050-70,cy=58+(i%2)*32;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.arc(cx+24,cy-7,25,0,Math.PI*2);ctx.arc(cx+50,cy,17,0,Math.PI*2);ctx.fill();}
- ctx.fillStyle="#a6d7bf";ctx.beginPath();ctx.moveTo(0,236);for(let i=0;i<=900;i+=90)ctx.quadraticCurveTo(i+45,207+Math.sin(i*.02)*10,i+90,236);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
- ctx.fillStyle="#344d50";ctx.fillRect(0,GROUND,W,4);ctx.fillStyle="#7fae8d";ctx.fillRect(0,GROUND+4,W,H-GROUND-4);
- ctx.strokeStyle="#d7edc7";for(let i=-(frame*speed%55);i<W;i+=55){ctx.beginPath();ctx.moveTo(i,GROUND+28);ctx.lineTo(i+20,GROUND+28);ctx.stroke();}
-}
-function drawPlayer(){
- const w=ducking?112:96,h=ducking?78:112,y=ducking?GROUND-h:player.y;
- // Draw Gauri's head prominently from the character artwork, even if the body art fails.
- if(face.complete&&face.naturalWidth){
-   const sw=180, sh=174, dw=ducking?78:86, dh=ducking?76:92, dx=player.x+(w-dw)/2, dy=y;
-   ctx.save(); if(ducking){ctx.translate(player.x+w,y);ctx.scale(-1,1);ctx.drawImage(face,0,0,sw,sh,8,0,dw,dh);} else ctx.drawImage(face,0,0,sw,sh,dx,dy,dw,dh); ctx.restore();
-   ctx.fillStyle="#20bfc0";ctx.fillRect(player.x+20,y+dh-5,56,h-dh+5);
- } else {
-   ctx.fillStyle="#20bfc0";ctx.fillRect(player.x+18,y+53,60,58);
-   ctx.fillStyle="#241b1a";ctx.beginPath();ctx.arc(player.x+48,y+31,30,Math.PI,Math.PI*2);ctx.fill();
-   ctx.fillStyle="#d99a76";ctx.beginPath();ctx.ellipse(player.x+48,y+38,25,29,0,0,Math.PI*2);ctx.fill();
-   ctx.fillStyle="#211a18";ctx.beginPath();ctx.arc(player.x+39,y+38,3,0,7);ctx.arc(player.x+57,y+38,3,0,7);ctx.fill();
-   ctx.strokeStyle="#914c4b";ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x+48,y+49,8,.2,2.8);ctx.stroke();
- }
-}
-let jumpAudioCtx=null;
-function playJumpSound(){
- try{
-  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
-  if(!jumpAudioCtx)jumpAudioCtx=new AC();if(jumpAudioCtx.state==="suspended")jumpAudioCtx.resume();
-  const now=jumpAudioCtx.currentTime,osc=jumpAudioCtx.createOscillator(),gain=jumpAudioCtx.createGain();
-  osc.type="sine";osc.frequency.setValueAtTime(520,now);osc.frequency.exponentialRampToValueAtTime(880,now+.11);
-  gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.18,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.24);
-  osc.connect(gain);gain.connect(jumpAudioCtx.destination);osc.start(now);osc.stop(now+.25);
- }catch(e){console.warn("Jump sound unavailable",e);}
-}
-function drawOverlay(title,subtitle){ctx.fillStyle="rgba(16,32,59,.72)";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="900 42px system-ui";ctx.fillText(title,W/2,140);ctx.font="600 18px system-ui";ctx.fillStyle="#d5f8f3";ctx.fillText(subtitle,W/2,180);ctx.font="700 14px system-ui";ctx.fillStyle="#c4d6e8";ctx.fillText("Tap the game or press SPACE to play",W/2,218);}
-function hit(o){const px=player.x+18,py=player.y+10,pw=62,ph=95,ox=o.x+4,oy=GROUND-o.h+4,ow=o.w-8,oh=o.h-4;return px<ox+ow&&px+pw>ox&&py<oy+oh&&py+ph>oy;}
-function loop(){
- requestAnimationFrame(loop);drawBackground();
- if(state==="run"){
-  frame++;score+=speed*.08;speed=Math.min(12,6+score/300);
-  player.vy+=.72;player.y+=player.vy;if(player.y>GROUND-112){player.y=GROUND-112;player.vy=0;}
-  if(frame%Math.max(48,Math.floor(105-speed*3))===0)obstacles.push({x:W+20,w:Math.random()<.7?32:45,h:Math.random()<.7?54:34});
-  if(frame%120===0)gems.push({x:W+20,y:GROUND-105-Math.random()*45});
-  obstacles.forEach(o=>o.x-=speed);gems.forEach(a=>a.x-=speed);
-  obstacles=obstacles.filter(o=>o.x>-60);gems=gems.filter(a=>a.x>-30);
-  for(const o of obstacles){if(hit(o)){state="over";if(score>best){best=Math.floor(score);safeSave();bestEl.textContent=String(best).padStart(5,"0");}}}
-  for(const a of gems){if(!a.got&&Math.hypot(player.x+48-a.x,player.y+48-a.y)<48){a.got=true;coins++;}}
-  gems=gems.filter(a=>!a.got);updateHud();
- }
- for(const o of obstacles){ctx.fillStyle="#267b54";ctx.fillRect(o.x+10,GROUND-o.h,15,o.h);ctx.fillRect(o.x,GROUND-36,18,12);ctx.fillRect(o.x+20,GROUND-46,15,12);}
- for(const a of gems){ctx.fillStyle="#ffbd36";ctx.beginPath();ctx.arc(a.x,a.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#fff0ae";ctx.lineWidth=3;ctx.stroke();}
- drawPlayer();
- if(state==="ready")drawOverlay("READY, GAURI?","Jump over obstacles · Collect shiny coins");
- if(state==="over")drawOverlay("GAME OVER","Score "+Math.floor(score)+" · Coins "+coins+" · Tap to try again");
-}
-function setDuck(v){if(state==="run")ducking=v;}
-document.addEventListener("keydown",e=>{if(["Space","ArrowUp","KeyW"].includes(e.code)){e.preventDefault();jump();}if(["ArrowDown","KeyS"].includes(e.code)){e.preventDefault();setDuck(true);}});
-document.addEventListener("keyup",e=>{if(["ArrowDown","KeyS"].includes(e.code))setDuck(false);});
-canvas.addEventListener("pointerdown",e=>{e.preventDefault();jump();});
-document.getElementById("jump").addEventListener("pointerdown",e=>{e.preventDefault();jump();});
-const duckButton=document.getElementById("duck");duckButton.addEventListener("pointerdown",e=>{e.preventDefault();setDuck(true);});
-["pointerup","pointerleave","pointercancel"].forEach(k=>duckButton.addEventListener(k,()=>setDuck(false)));
-document.getElementById("restart").addEventListener("click",start);
-document.getElementById("sound").addEventListener("click",e=>{e.currentTarget.textContent="♫ Sound: Off";});
-loop();
+(()=>{"use strict";
+const canvas=document.getElementById("game"),ctx=canvas?.getContext("2d");
+const $=id=>document.getElementById(id);
+if(!ctx){document.body.innerHTML="<p style='color:white'>Game error: canvas could not be created. Please refresh.</p>";return;}
+const W=900,H=340,G=276;let mode="ready",score=0,best=0,coins=0,speed=6,frame=0,obstacles=[],gems=[],duck=false,sound=true,audio=null;
+try{best=+(localStorage.getItem("gauriBest")||0)}catch(e){}$("best").textContent=String(best).padStart(5,"0");
+const face=new Image();face.onload=()=>{};face.onerror=()=>console.error("Gauri character image failed to load: ./assets/gauri.svg");face.src="./assets/gauri.svg";
+const p={x:100,y:G-112,vy:0,jumps:0};
+function hud(){$("score").textContent=String(Math.floor(score)).padStart(5,"0");$("coins").textContent=coins}
+function start(){mode="run";score=coins=frame=0;speed=6;obstacles=[];gems=[];duck=false;p.y=G-112;p.vy=0;p.jumps=0;hud()}
+function jump(){if(mode!=="run"){start();return}if(p.jumps<2){p.vy=p.jumps===0?-15:-12;p.jumps++;playJump()}}
+function playJump(){if(!sound)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;audio??=new A();if(audio.state==="suspended")audio.resume();const t=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();o.type="sine";o.frequency.setValueAtTime(500,t);o.frequency.exponentialRampToValueAtTime(850,t+.12);g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(.16,t+.02);g.gain.exponentialRampToValueAtTime(.001,t+.25);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.26)}catch(e){console.warn("Audio unavailable",e)}}
+function background(){let gr=ctx.createLinearGradient(0,0,0,H);gr.addColorStop(0,"#b9eff8");gr.addColorStop(1,"#f4f5d7");ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);ctx.fillStyle="#ffffffc9";for(let i=0;i<4;i++){let x=(i*260-frame*1.2%1100+1100)%1100-60,y=55+i%2*35;ctx.beginPath();ctx.arc(x,y,19,0,7);ctx.arc(x+24,y-7,25,0,7);ctx.arc(x+50,y,18,0,7);ctx.fill()}ctx.fillStyle="#a8d9bc";ctx.fillRect(0,236,W,104);ctx.fillStyle="#47745e";ctx.fillRect(0,G,W,5);ctx.fillStyle="#d8edc7";for(let x=-(frame*speed%55);x<W;x+=55)ctx.fillRect(x,G+27,22,4)}
+function player(){let h=duck?70:112,w=duck?110:92,y=duck?G-h:p.y;ctx.fillStyle="#0002";ctx.beginPath();ctx.ellipse(p.x+45,G+4,40,6,0,0,7);ctx.fill();if(face.complete&&face.naturalWidth){ctx.drawImage(face,0,0,180,174,p.x+(w-86)/2,y,86,duck?70:91);ctx.fillStyle="#20bfc0";ctx.fillRect(p.x+19,y+(duck?58:83),58,h-(duck?58:83))}else{ctx.fillStyle="#20bfc0";ctx.fillRect(p.x+17,y+53,60,h-53);ctx.fillStyle="#d99a76";ctx.beginPath();ctx.arc(p.x+47,y+33,27,0,7);ctx.fill()} }
+function collide(o){let x=p.x+20,y=duck?G-70:p.y+10,h=duck?56:94;return x+55>o.x+5&&x<o.x+o.w-5&&y+h>G-o.h+4}
+function overlay(a,b){ctx.fillStyle="#10203bbd";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="white";ctx.font="900 42px system-ui";ctx.fillText(a,450,140);ctx.font="600 18px system-ui";ctx.fillStyle="#d5f8f3";ctx.fillText(b,450,180);ctx.font="600 14px system-ui";ctx.fillText("Tap the game or press SPACE to continue",450,218)}
+function loop(){requestAnimationFrame(loop);background();if(mode==="run"){frame++;score+=.1*speed;speed=Math.min(12,6+score/250);p.vy+=.72;p.y+=p.vy;if(p.y>=G-112){p.y=G-112;p.vy=0;p.jumps=0}if(frame%Math.max(48,Math.floor(105-speed*3))===0)obstacles.push({x:W+10,w:34+Math.random()*14,h:38+Math.random()*25});if(frame%115===0)gems.push({x:W+10,y:G-100-Math.random()*40});obstacles.forEach(o=>o.x-=speed);gems.forEach(c=>c.x-=speed);obstacles=obstacles.filter(o=>o.x>-60);gems=gems.filter(c=>c.x>-20);for(const o of obstacles)if(collide(o)){mode="over";best=Math.max(best,Math.floor(score));try{localStorage.setItem("gauriBest",best)}catch(e){}$("best").textContent=String(best).padStart(5,"0")}gems=gems.filter(c=>{if(Math.hypot(c.x-(p.x+45),c.y-(p.y+40))<40){coins++;return false}return true});hud()}
+for(const o of obstacles){ctx.fillStyle="#278052";ctx.fillRect(o.x+9,G-o.h,16,o.h);ctx.fillRect(o.x,G-35,20,12);ctx.fillRect(o.x+19,G-45,16,12)}for(const c of gems){ctx.fillStyle="#ffc735";ctx.beginPath();ctx.arc(c.x,c.y,11,0,7);ctx.fill();ctx.strokeStyle="#fff1a6";ctx.lineWidth=3;ctx.stroke()}player();if(mode==="ready")overlay("READY, GAURI?","Jump over obstacles and collect coins!");if(mode==="over")overlay("GAME OVER","Score "+Math.floor(score)+" · Coins "+coins+" · Restart to play again")}
+function setDuck(v){if(mode==="run")duck=v}
+window.addEventListener("keydown",e=>{if(["Space","ArrowUp","KeyW"].includes(e.code)){e.preventDefault();jump()}if(["ArrowDown","KeyS"].includes(e.code)){e.preventDefault();setDuck(true)}});window.addEventListener("keyup",e=>{if(["ArrowDown","KeyS"].includes(e.code))setDuck(false)});
+canvas.addEventListener("pointerdown",e=>{e.preventDefault();jump()});$("jump").addEventListener("pointerdown",e=>{e.preventDefault();jump()});$("duck").addEventListener("pointerdown",e=>{e.preventDefault();setDuck(true)});["pointerup","pointerleave","pointercancel"].forEach(k=>$("duck").addEventListener(k,()=>setDuck(false)));$("restart").onclick=start;$("sound").onclick=()=>{sound=!sound;$("sound").textContent="♫ Sound: "+(sound?"On":"Off")};loop();console.info("GAURI RUN initialized successfully");
 })();
